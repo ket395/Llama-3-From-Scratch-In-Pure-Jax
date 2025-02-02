@@ -1,30 +1,40 @@
 from dataclasses import dataclass
-from typing import Optional
+import tiktoken
 
-@dataclass(frozen=True)
+# Initialize tokenizer
+enc = tiktoken.get_encoding("gpt2")
+
+@dataclass
 class ModelArgs:
-    # Model architecture
-    dim: int = 768
-    n_layers: int = 12
-    n_heads: int = 12
-    n_kv_heads: Optional[int] = 2
-    vocab_size: int = 50257  # GPT-2 vocabulary size
+    vocab_size: int
+    dim: int
+    n_layers: int
+    n_heads: int
+    n_kv_heads: int
+    max_seq_len: int
     multiple_of: int = 32
-    ffn_dim_multiplier: Optional[float] = None
     norm_eps: float = 1e-5
-    max_seq_len: int = 512
     dropout_rate: float = 0.0
 
-@dataclass(frozen=True)
-class TrainingArgs:
-    # Training hyperparameters
-    batch_size: int = 16
-    base_learning_rate: float = 3e-4
-    num_epochs: int = 30
-    steps_per_epoch: int = 1000
-    warmup_steps: int = 100
-    
-    # Adam optimizer parameters
-    beta1: float = 0.9
-    beta2: float = 0.999
-    eps: float = 1e-8 
+# Model configuration
+args = ModelArgs(
+    vocab_size=enc.n_vocab,
+    dim=768,           
+    n_layers=12,       
+    n_heads=12,        
+    n_kv_heads=2,      
+    max_seq_len=512,   
+    multiple_of=32,    
+    norm_eps=1e-5,     
+)
+
+# Training parameters
+batch_size = 16
+base_learning_rate = 3e-4
+num_epochs = 30  
+steps_per_epoch = 1000  
+
+# Adam hyperparameters
+beta1 = 0.9
+beta2 = 0.999
+eps = 1e-8

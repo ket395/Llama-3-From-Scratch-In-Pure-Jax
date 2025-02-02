@@ -100,7 +100,7 @@ def attention(params, x, mask, freqs_cis, n_heads, n_kv_heads, cache=None, posit
 def feed_forward(params, x):
     return jnp.dot(jax.nn.silu(jnp.dot(x, params['w3'])) * jnp.dot(x, params['w1']), params['w2'])
 
-def transformer_block(params, x, mask, freqs_cis, n_heads, n_kv_heads, cache=None, position=0, training=False, dropout_rate=0.0):
+def transformer_block(params, x, mask, freqs_cis, n_heads, n_kv_heads, cache=None, position=0, training=False, dropout_rate=0.0, key=None):
     attn_output, new_cache = attention(
         params['attention'],
         rms_norm(x, params['attention_norm']),
@@ -112,12 +112,14 @@ def transformer_block(params, x, mask, freqs_cis, n_heads, n_kv_heads, cache=Non
         position
     )
     if training:
-        attn_output = jax.random.bernoulli(key, 1-dropout_rate) * attn_output / (1-dropout_rate)
+        dropout_key, key = jax.random.split(key)
+        attn_output = jax.random.bernoulli(dropout_key, 1-dropout_rate, shape=attn_output.shape) * attn_output / (1-dropout_rate)
     h = x + attn_output
 
     ffn_output = feed_forward(params['ffn'], rms_norm(h, params['ffn_norm']))
     if training:
-        ffn_output = jax.random.bernoulli(key, 1-dropout_rate) * ffn_output / (1-dropout_rate)
+        dropout_key, key = jax.random.split(key)
+        ffn_output = jax.random.bernoulli(dropout_key, 1-dropout_rate, shape=ffn_output.shape) * ffn_output / (1-dropout_rate)
     out = h + ffn_output
     
     return out, new_cache
@@ -125,12 +127,23 @@ def transformer_block(params, x, mask, freqs_cis, n_heads, n_kv_heads, cache=Non
 def model_forward(params, inputs, args, cache=None, position=0):
     B, T = inputs.shape
     h = params['token_embedding'][inputs]
-    freqs_cis = precompute_freqs_cis(args.dim // args.n_heads, args.max_seq_len)
     
-    mask = jnp.tril(jnp.ones((args.max_seq_len, args.max_seq_len)))
-    mask = jnp.where(mask == 0, -1e9, 0.0)
-    mask = mask.astype(h.dtype)
-    mask = mask[None, None, :, :]
+    # Validate input dimensions
+    if T > args.max_seq_len:
+        raise ValueError(f"Input sequence length {T} exceeds maximum allowed {args.max_seq_len}")
+    
+    # Use cached freqs_cis if possible
+    if not hasattr(model_forward, '_freqs_cis'):
+        model_forward._freqs_cis = precompute_freqs_cis(args.dim // args.n_heads, args.max_seq_len)
+    freqs_cis = model_forward._freqs_cis
+    
+    # Use cached mask if possible
+    if not hasattr(model_forward, '_mask'):
+        mask = jnp.tril(jnp.ones((args.max_seq_len, args.max_seq_len)))
+        mask = jnp.where(mask == 0, -1e9, 0.0)
+        mask = mask.astype(h.dtype)
+        model_forward._mask = mask[None, None, :, :]
+    mask = model_forward._mask
 
     new_caches = []
     for i, block in enumerate(params['blocks']):

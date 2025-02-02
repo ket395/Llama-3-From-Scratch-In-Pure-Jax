@@ -4,7 +4,8 @@ import jax
 import jax.numpy as jnp
 from jax import random
 import tiktoken
-from model import ModelArgs, model_forward
+from model import  model_forward
+from config import ModelArgs
 import os
 import pickle
 import time 
@@ -23,20 +24,24 @@ args = ModelArgs(
     norm_eps=1e-5,
 )
 
-# Force JAX to use GPU lol 
+# Force JAX to use GPU
 os.environ['JAX_PLATFORM_NAME'] = 'gpu'
 os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
 
 # After imports, verify GPU is available
 print("JAX devices:", jax.devices())
 
-
-
+def save_model(params, filename):
+    with open(filename, 'wb') as f:
+        pickle.dump(params, f)
 
 def load_model(filename):
-
-    with open(filename, 'rb') as f:
-        return pickle.load(f)
+    try:
+        with open(filename, 'rb') as f:
+            return pickle.load(f)
+    except FileNotFoundError:
+        print(f"Warning: Model file {filename} not found.")
+        return None
 
 def top_k_top_p_filtering(logits, top_k=50, top_p=0.9, temperature=0.7):
    
@@ -94,13 +99,15 @@ def generate(params, prompt_tokens, max_new_tokens, args, temperature=0.7, top_k
     
     return x[0]
 
-# Load saved weights
-params = load_model('model_weights.pkl')
-
-# Generate text
-prompt = "Hi how are"
-prompt_tokens = enc.encode(prompt)
-generated_tokens = generate(params, prompt_tokens, 50, args, temperature=0.7, top_k=50, top_p=0.9)
-generated_text = enc.decode(generated_tokens.tolist())
-print("\nGenerated text:")
-print(generated_text)
+# Only run this if the file is being run directly (not imported)
+if __name__ == "__main__":
+    # Load saved weights
+    params = load_model('model_weights.pkl')
+    if params is not None:
+        # Generate text
+        prompt = "Hi how are"
+        prompt_tokens = enc.encode(prompt)
+        generated_tokens = generate(params, prompt_tokens, 50, args, temperature=0.7, top_k=50, top_p=0.9)
+        generated_text = enc.decode(generated_tokens.tolist())
+        print("\nGenerated text:")
+        print(generated_text)
