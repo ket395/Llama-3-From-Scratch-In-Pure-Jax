@@ -3,7 +3,6 @@ import jax.numpy as jnp
 from jax import random
 import math
 
-
 def rms_norm(x, weight, eps=1e-5):
     variance = jnp.mean(jnp.square(x), axis=-1, keepdims=True)
     return x * weight * jnp.reciprocal(jnp.sqrt(variance + eps))
@@ -125,10 +124,6 @@ def transformer_block(params, x, mask, freqs_cis, n_heads, n_kv_heads, cache=Non
 def model_forward(params, inputs, args, cache=None, position=0):
     B, T = inputs.shape
     h = params['token_embedding'][inputs]
-    
-    # Validate input dimensions
-    if T > args.max_seq_len:
-        raise ValueError(f"Input sequence length {T} exceeds maximum allowed {args.max_seq_len}")
     
     # Use cached freqs_cis if possible
     if not hasattr(model_forward, '_freqs_cis'):
