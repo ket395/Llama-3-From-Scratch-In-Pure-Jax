@@ -2,9 +2,7 @@ import jax
 import jax.numpy as jnp
 from jax import random
 import math
-from typing import Optional
-from dataclasses import dataclass
-from config import ModelArgs
+
 
 def rms_norm(x, weight, eps=1e-5):
     variance = jnp.mean(jnp.square(x), axis=-1, keepdims=True)
