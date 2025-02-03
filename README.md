@@ -1,2 +1,7 @@
-# Llama-3-From-Scratch-In-Pure-Jax
-This repository contain the simple llama3  implementation in pure jax. 
+# llama3 in jax 
+
+![llama](images/llama.jpg)
+
+> [!IMPORTANT]
+> The implmentation of the llama3 in jax is only for educational purposes
+> 
