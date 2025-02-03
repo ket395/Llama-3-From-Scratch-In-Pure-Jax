@@ -29,12 +29,12 @@ def apply_rotary_emb(xq, xk, freqs_cis):
 def repeat_kv(x, n_rep):
     return x if n_rep == 1 else jnp.repeat(x, n_rep, axis=2)
 
+def init_weight(key, shape, scale=None):
+    scale = 1.0 / math.sqrt(shape[0]) if scale is None else scale
+    return jax.random.normal(key, shape) * scale
+
 def init_params(key, args):
     keys = jax.random.split(key, 10)
-    
-    def init_weight(key, shape, scale=None):
-        scale = 1.0 / math.sqrt(shape[0]) if scale is None else scale
-        return jax.random.normal(key, shape) * scale
     
     params = {
         'token_embedding': init_weight(keys[0], (args.vocab_size, args.dim)),
