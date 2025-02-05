@@ -60,28 +60,20 @@ def forward_fn(params, inputs, vocab_size, dim, n_layers, n_heads, n_kv_heads, m
     return model_forward(params, inputs, ModelArgs(**args_dict))
 
 
-def compute_loss(params, batch, args):
+# First, define the loss function at module level
+def compute_loss(params, batch, vocab_size, dim, n_layers, n_heads, n_kv_heads, max_seq_len):
     inputs, targets = batch
-    logits, _ = forward_fn(params, inputs, args.vocab_size, args.dim, args.n_layers, 
-                          args.n_heads, args.n_kv_heads, args.max_seq_len)
-    logits = logits.reshape(-1, args.vocab_size)
+    logits, _ = forward_fn(params, inputs, vocab_size, dim, n_layers, n_heads, n_kv_heads, max_seq_len)
+    logits = logits.reshape(-1, vocab_size)
     targets = targets.reshape(-1)
-    labels = jax.nn.one_hot(targets, args.vocab_size)
+    labels = jax.nn.one_hot(targets, vocab_size)
     loss = -jnp.sum(labels * jax.nn.log_softmax(logits, axis=-1))
     return loss / targets.size
 
 @partial(jax.jit, static_argnums=(3, 4, 5, 6, 7, 8))
 def update_step(params, adam_state, batch, vocab_size, dim, n_layers, n_heads, n_kv_heads, max_seq_len, learning_rate, beta1, beta2, eps):
-    def loss_fn(params, batch):
-        inputs, targets = batch
-        logits, _ = forward_fn(params, inputs, vocab_size, dim, n_layers, n_heads, n_kv_heads, max_seq_len)
-        logits = logits.reshape(-1, vocab_size)
-        targets = targets.reshape(-1)
-        labels = jax.nn.one_hot(targets, vocab_size)
-        loss = -jnp.sum(labels * jax.nn.log_softmax(logits, axis=-1))
-        return loss / targets.size
+    loss, grads = jax.value_and_grad(lambda p, b: compute_loss(p, b, vocab_size, dim, n_layers, n_heads, n_kv_heads, max_seq_len))(params, batch)
     
-    loss, grads = jax.value_and_grad(loss_fn)(params, batch)
     t = adam_state['t'] + 1
     m = tree_map(lambda m, g: beta1 * m + (1 - beta1) * g, adam_state['m'], grads)
     v = tree_map(lambda v, g: beta2 * v + (1 - beta2) * jnp.square(g), adam_state['v'], grads)
