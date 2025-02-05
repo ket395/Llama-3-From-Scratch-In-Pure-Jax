@@ -68,7 +68,10 @@ def compute_loss(params, batch, vocab_size, dim, n_layers, n_heads, n_kv_heads, 
     targets = targets.reshape(-1)
     labels = jax.nn.one_hot(targets, vocab_size)
     loss = -jnp.sum(labels * jax.nn.log_softmax(logits, axis=-1))
+    
     return loss / targets.size
+
+
 
 @partial(jax.jit, static_argnums=(3, 4, 5, 6, 7, 8))
 def update_step(params, adam_state, batch, vocab_size, dim, n_layers, n_heads, n_kv_heads, max_seq_len, learning_rate, beta1, beta2, eps):
@@ -86,25 +89,47 @@ def update_step(params, adam_state, batch, vocab_size, dim, n_layers, n_heads, n
     new_adam_state = {'m': m, 'v': v, 't': t}
     return new_params, new_adam_state, loss
 
+
+
+
 print(f"Total parameters: {sum(x.size for x in tree_leaves(params)):,}")
 print(f"Training for {num_epochs} epochs, {steps_per_epoch} steps per epoch")
 
-for epoch in range(num_epochs):
-    epoch_loss = 0.0
-    for step in range(steps_per_epoch):
-        batch = tuple(jnp.array(x) for x in get_batch(data, batch_size, args.max_seq_len))
-        lr = get_lr(epoch * steps_per_epoch + step, base_learning_rate)
-        params, adam_state, loss = update_step(
-            params, adam_state, batch, 
-            args.vocab_size, args.dim, args.n_layers, args.n_heads, 
-            args.n_kv_heads, args.max_seq_len,
-            lr, beta1, beta2, eps
-        )
-        wandb.log({"loss": loss, "learning_rate": lr})
-        if step % 50 == 0:
-            print(f"Epoch {epoch+1}/{num_epochs} | Step {step} | Loss: {loss:.4f} | LR: {lr:.6f}")
-        epoch_loss += loss
-    print(f"Epoch {epoch+1} completed | Avg loss: {epoch_loss/steps_per_epoch:.4f}")
+
+# Calculate total number of steps
+total_steps = num_epochs * steps_per_epoch
+
+# Flatten the loops into a single loop
+for step in range(total_steps):
+    # Calculate current epoch for logging
+    current_epoch = step // steps_per_epoch
+    
+    # Get batch
+    batch = tuple(jnp.array(x) for x in get_batch(data, batch_size, args.max_seq_len))
+    
+    # Calculate learning rate
+    lr = get_lr(step, base_learning_rate)
+    
+    # Update step
+    params, adam_state, loss = update_step(
+        params, adam_state, batch, 
+        args.vocab_size, args.dim, args.n_layers, args.n_heads, 
+        args.n_kv_heads, args.max_seq_len,
+        lr, beta1, beta2, eps
+    )
+    
+    # Log to wandb
+    wandb.log({"loss": loss, "learning_rate": lr})
+    
+    # Print progress
+    if step % 50 == 0:
+        print(f"Step {step}/{total_steps} | Epoch {current_epoch+1}/{num_epochs} | Loss: {loss:.4f} | LR: {lr:.6f}")
+    
+    # Calculate and print epoch statistics
+    if (step + 1) % steps_per_epoch == 0:
+        print(f"Epoch {current_epoch+1} completed | Loss: {loss:.4f}")
+        
+        
 
 save_model(params, 'model_weights.pkl')
 
