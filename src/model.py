@@ -33,38 +33,50 @@ def init_weight(key, shape, scale=None):
     scale = 1.0 / math.sqrt(shape[0]) if scale is None else scale
     return jax.random.normal(key, shape) * scale
 
-def init_params(key, args):
-    keys = jax.random.split(key, 10)
+def init_attention_weights(key, dim, n_heads, n_kv_heads):
+    keys = jax.random.split(key, 4)
+    head_dim = dim // n_heads
+    return {
+        'wq': init_weight(keys[0], (dim, n_heads * head_dim)),
+        'wk': init_weight(keys[1], (dim, n_kv_heads * head_dim)),
+        'wv': init_weight(keys[2], (dim, n_kv_heads * head_dim)),
+        'wo': init_weight(keys[3], (n_heads * head_dim, dim))
+    }
+
+def init_ffn_weights(key, dim):
+    keys = jax.random.split(key, 3)
+    return {
+        'w1': init_weight(keys[0], (dim, 4 * dim)),
+        'w2': init_weight(keys[1], (4 * dim, dim)),
+        'w3': init_weight(keys[2], (dim, 4 * dim))
+    }
+
+def init_transformer_block(key, dim, n_heads, n_kv_heads):
+    keys = jax.random.split(key, 4)
+    return {
+        'attention': init_attention_weights(keys[0], dim, n_heads, n_kv_heads),
+        'ffn': init_ffn_weights(keys[1], dim),
+        'attention_norm': init_weight(keys[2], (dim,), scale=1.0),
+        'ffn_norm': init_weight(keys[3], (dim,), scale=1.0)
+    }
+
+def init_model_params(key, vocab_size, dim, n_layers, n_heads, n_kv_heads):
+    keys = jax.random.split(key, 4)
     
     params = {
-        'token_embedding': init_weight(keys[0], (args.vocab_size, args.dim)),
-        'norm_f': init_weight(keys[1], (args.dim,), scale=1.0),
-        'output': init_weight(keys[2], (args.dim, args.vocab_size)),
+        'token_embedding': init_weight(keys[0], (vocab_size, dim)),
+        'norm_f': init_weight(keys[1], (dim,), scale=1.0),
+        'output': init_weight(keys[2], (dim, vocab_size))
     }
     
-    blocks = []
-    keys_block = jax.random.split(keys[3], args.n_layers * 7)
-    for i in range(args.n_layers):
-        key_start = i * 7
-        block = {
-            'attention': {
-                'wq': init_weight(keys_block[key_start], (args.dim, args.n_heads * (args.dim // args.n_heads))),
-                'wk': init_weight(keys_block[key_start+1], (args.dim, args.n_kv_heads * (args.dim // args.n_heads))),
-                'wv': init_weight(keys_block[key_start+2], (args.dim, args.n_kv_heads * (args.dim // args.n_heads))),
-                'wo': init_weight(keys_block[key_start+3], (args.n_heads * (args.dim // args.n_heads), args.dim)),
-            },
-            'ffn': {
-                'w1': init_weight(keys_block[key_start+4], (args.dim, 4 * args.dim)),
-                'w2': init_weight(keys_block[key_start+5], (4 * args.dim, args.dim)),
-                'w3': init_weight(keys_block[key_start+6], (args.dim, 4 * args.dim)),
-            },
-            'attention_norm': init_weight(keys_block[key_start], (args.dim,), scale=1.0),
-            'ffn_norm': init_weight(keys_block[key_start+1], (args.dim,), scale=1.0),
-        }
-        blocks.append(block)
-    
-    params['blocks'] = blocks
+    block_keys = jax.random.split(keys[3], n_layers)
+    params['blocks'] = [
+        init_transformer_block(k, dim, n_heads, n_kv_heads) 
+        for k in block_keys
+    ]
     return params
+
+
 
 def attention(params, x, mask, freqs_cis, n_heads, n_kv_heads, cache=None, position=0):
     B, T, C = x.shape
