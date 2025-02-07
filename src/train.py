@@ -3,15 +3,15 @@ import jax.numpy as jnp
 from jax import random
 import tiktoken
 import numpy as np
-from model import  init_params, model_forward
 from functools import partial
 import time
 import os
 from jax.tree_util import tree_map, tree_leaves
-from jax.experimental import checkify
-import pickle
 import wandb
 from dataclasses import dataclass
+
+# Import the new initialization functions
+from model import init_model_params, model_forward
 from utils import get_batch, get_lr, save_model, load_model, generate
 from config import ModelArgs, args, batch_size, base_learning_rate, num_epochs, steps_per_epoch, beta1, beta2, eps, enc
 
@@ -20,16 +20,25 @@ os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
 
 print("JAX devices:", jax.devices())
 
+# Load and prepare data
 enc = tiktoken.get_encoding("gpt2")
-
 with open('shakespeare.txt', 'r') as f:
     text = f.read()
 tokens = enc.encode(text)
 data = np.array(tokens, dtype=np.int32)
 
+# Initialize model parameters with new structure
 key = random.PRNGKey(0)
-params = init_params(key, args)
+params = init_model_params(
+    key=key,
+    vocab_size=args.vocab_size,
+    dim=args.dim,
+    n_layers=args.n_layers,
+    n_heads=args.n_heads,
+    n_kv_heads=args.n_kv_heads
+)
 
+# Rest of the initialization code remains the same
 adam_state = {
     'm': tree_map(jnp.zeros_like, params),
     'v': tree_map(jnp.zeros_like, params),
@@ -59,8 +68,6 @@ def forward_fn(params, inputs, vocab_size, dim, n_layers, n_heads, n_kv_heads, m
     }
     return model_forward(params, inputs, ModelArgs(**args_dict))
 
-
-# First, define the loss function at module level
 def compute_loss(params, batch, vocab_size, dim, n_layers, n_heads, n_kv_heads, max_seq_len):
     inputs, targets = batch
     logits, _ = forward_fn(params, inputs, vocab_size, dim, n_layers, n_heads, n_kv_heads, max_seq_len)
@@ -68,10 +75,7 @@ def compute_loss(params, batch, vocab_size, dim, n_layers, n_heads, n_kv_heads, 
     targets = targets.reshape(-1)
     labels = jax.nn.one_hot(targets, vocab_size)
     loss = -jnp.sum(labels * jax.nn.log_softmax(logits, axis=-1))
-    
     return loss / targets.size
-
-
 
 @partial(jax.jit, static_argnums=(3, 4, 5, 6, 7, 8))
 def update_step(params, adam_state, batch, vocab_size, dim, n_layers, n_heads, n_kv_heads, max_seq_len, learning_rate, beta1, beta2, eps):
@@ -89,28 +93,17 @@ def update_step(params, adam_state, batch, vocab_size, dim, n_layers, n_heads, n
     new_adam_state = {'m': m, 'v': v, 't': t}
     return new_params, new_adam_state, loss
 
-
-
-
+# Training loop
 print(f"Total parameters: {sum(x.size for x in tree_leaves(params)):,}")
 print(f"Training for {num_epochs} epochs, {steps_per_epoch} steps per epoch")
 
-
-# Calculate total number of steps
 total_steps = num_epochs * steps_per_epoch
 
-# Flatten the loops into a single loop
 for step in range(total_steps):
-    # Calculate current epoch for logging
     current_epoch = step // steps_per_epoch
-    
-    # Get batch
     batch = tuple(jnp.array(x) for x in get_batch(data, batch_size, args.max_seq_len))
-    
-    # Calculate learning rate
     lr = get_lr(step, base_learning_rate)
     
-    # Update step
     params, adam_state, loss = update_step(
         params, adam_state, batch, 
         args.vocab_size, args.dim, args.n_layers, args.n_heads, 
@@ -118,19 +111,15 @@ for step in range(total_steps):
         lr, beta1, beta2, eps
     )
     
-    # Log to wandb
     wandb.log({"loss": loss, "learning_rate": lr})
     
-    # Print progress
     if step % 50 == 0:
         print(f"Step {step}/{total_steps} | Epoch {current_epoch+1}/{num_epochs} | Loss: {loss:.4f} | LR: {lr:.6f}")
     
-    # Calculate and print epoch statistics
     if (step + 1) % steps_per_epoch == 0:
         print(f"Epoch {current_epoch+1} completed | Loss: {loss:.4f}")
-        
-        
 
+# Save model and generate sample
 save_model(params, 'model_weights.pkl')
 
 prompt = "O, fair maiden, thy beauty doth outshine the stars."
