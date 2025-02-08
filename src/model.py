@@ -7,8 +7,8 @@ def rms_norm(x, weight, eps=1e-5):
     variance = jnp.mean(jnp.square(x), axis=-1, keepdims=True)
     return x * weight * jnp.reciprocal(jnp.sqrt(variance + eps))
 
-def precompute_freqs_cis(dim, end, theta=10000.0):
-    freqs = 1.0 / (theta ** (jnp.arange(0, dim, 2)[:(dim // 2)].astype('float32') / dim))
+def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
+    freqs = 1.0 / (theta ** (jnp.arange(0, dim // 2, dtype=jnp.float32) / dim))
     t = jnp.arange(end, dtype=jnp.float32)
     freqs = jnp.outer(t, freqs)
     return jnp.complex64(jnp.exp(1j * freqs))
@@ -76,8 +76,6 @@ def init_model_params(key, vocab_size, dim, n_layers, n_heads, n_kv_heads):
     ]
     return params
 
-
-
 def attention(params, x, mask, freqs_cis, n_heads, n_kv_heads, cache=None, position=0):
     B, T, C = x.shape
     head_dim = C // n_heads
@@ -86,7 +84,9 @@ def attention(params, x, mask, freqs_cis, n_heads, n_kv_heads, cache=None, posit
     k = jnp.dot(x, params['wk']).reshape(B, T, n_kv_heads, head_dim)
     v = jnp.dot(x, params['wv']).reshape(B, T, n_kv_heads, head_dim)
     
-    q, k = apply_rotary_emb(q, k, freqs_cis[position:position+T])
+    # Fix the slicing operation for freqs_cis
+    freqs_cis_slice = freqs_cis[position:position + T]
+    q, k = apply_rotary_emb(q, k, freqs_cis_slice)
     
     if cache is not None:
         k = jnp.concatenate([cache[0], k], axis=1)
@@ -137,18 +137,14 @@ def model_forward(params, inputs, args, cache=None, position=0):
     B, T = inputs.shape
     h = params['token_embedding'][inputs]
     
-    # Use cached freqs_cis if possible
-    if not hasattr(model_forward, '_freqs_cis'):
-        model_forward._freqs_cis = precompute_freqs_cis(args.dim // args.n_heads, args.max_seq_len)
-    freqs_cis = model_forward._freqs_cis
+    # Compute freqs_cis for this forward pass
+    freqs_cis = precompute_freqs_cis(args.dim // args.n_heads, args.max_seq_len)
     
-    # Use cached mask if possible
-    if not hasattr(model_forward, '_mask'):
-        mask = jnp.tril(jnp.ones((args.max_seq_len, args.max_seq_len)))
-        mask = jnp.where(mask == 0, -1e9, 0.0)
-        mask = mask.astype(h.dtype)
-        model_forward._mask = mask[None, None, :, :]
-    mask = model_forward._mask
+    # Create causal mask
+    mask = jnp.tril(jnp.ones((args.max_seq_len, args.max_seq_len)))
+    mask = jnp.where(mask == 0, -1e9, 0.0)
+    mask = mask.astype(h.dtype)
+    mask = mask[None, None, :, :]
 
     new_caches = []
     for i, block in enumerate(params['blocks']):

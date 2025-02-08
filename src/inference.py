@@ -13,16 +13,18 @@ import time
 # Initialize tokenizer
 enc = tiktoken.get_encoding("gpt2")
 
-args = ModelArgs(
-    vocab_size=50257,  # GPT-2 vocabulary size
-    dim=768,
-    n_layers=12,
-    n_heads=12,
-    n_kv_heads=2,
-    max_seq_len=512,
-    multiple_of=32,
-    norm_eps=1e-5,
-)
+class ModelConfig:
+    vocab_size = enc.n_vocab  
+    dim = 256  
+    n_layers = 6  
+    n_heads = 8 
+    n_kv_heads = 4  
+    max_seq_len = 512
+    batch_size = 32  
+    learning_rate = 3e-4
+    dropout_rate = 0.0
+
+config = ModelConfig()
 
 # Force JAX to use GPU
 os.environ['JAX_PLATFORM_NAME'] = 'gpu'
