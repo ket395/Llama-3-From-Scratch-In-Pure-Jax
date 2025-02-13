@@ -1,13 +1,14 @@
 import jax
 import jax.numpy as jnp
-from jax import random
+from jax import random, vmap
 import tiktoken
 from functools import partial
 from model import init_model_params, model_forward
 import os
+import jax.lax as lax
 import pickle
 
-os.environ['JAX_PLATFORM_NAME'] = 'gpu'
+os.environ['JAX_PLATFORM_NAME'] = 'tpu'
 os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
 print("JAX devices:", jax.devices())
 
@@ -44,7 +45,7 @@ params = init_model_params(
 )
 
 def save_params(params, filepath):
-    numpy_params = jax.tree_map(lambda x: x.copy(), params)
+    numpy_params = jax.tree.map(lambda x: x.copy(), params)
     with open(filepath, 'wb') as f:
         pickle.dump(numpy_params, f)
 
@@ -52,13 +53,18 @@ def load_params(filepath):
     with open(filepath, 'rb') as f:
         numpy_params = pickle.load(f)
     # convert back to JAX arrays
-    params = jax.tree_map(lambda x: jnp.array(x), numpy_params)
+    params = jax.tree.map(lambda x: jnp.array(x), numpy_params)
     return params
 
+
 def get_batch(key, data, batch_size, seq_len):
+    # Generate random starting indices
     ix = random.randint(key, (batch_size,), 0, len(data) - seq_len)
-    x = jnp.stack([data[i:i+seq_len] for i in ix])
-    y = jnp.stack([data[i+1:i+seq_len+1] for i in ix])
+    
+    # Vectorized operation to get input and target sequences
+    x = vmap(lambda i: lax.dynamic_slice(data, (i,), (seq_len,)))(ix)
+    y = vmap(lambda i: lax.dynamic_slice(data, (i + 1,), (seq_len,)))(ix)
+    
     return x, y
 
 def generate(params, prompt_tokens, max_new_tokens, config):
