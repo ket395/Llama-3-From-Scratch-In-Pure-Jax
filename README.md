@@ -4,6 +4,7 @@
 > [!IMPORTANT]
 > this implementation is for educational purposes, which means it is not for any production stuff but it covers all components of the model.
 >
+> i also wrote a blog about this [here](https://saurabhalone.com/blogs/llama3/web).
 
 
 ### LLaMA3
