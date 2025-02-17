@@ -2,10 +2,8 @@
 
 
 > [!IMPORTANT]
-> The implmentation of the llama3 in jax is only for educational purposes
-> 
+> This implementation is for educational purposes, which means it is not for any production stuff but it covers all components of the model.
+>
 
-<div style="display: flex; gap: 10px;">
 
-    <img src="images/W&B Chart 1_2_2025, 6_42_04 PM.png" alt="loss" width="48%">
-</div>
+
