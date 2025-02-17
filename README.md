@@ -102,3 +102,35 @@ trained_params = train()
 ### loss 
 
 ![img](images/wandb.png)
+
+### output 
+
+![img](images/output.png)
+
+
+### run 
+
+```pytthon 
+
+install jax 
+install tiktoken 
+install pickle 
+
+```
+
+
+### Thank you !! 
+
+### You can Support me here :
+
+- [Twitter]()
+- [Buy-Me-Coffee]()
+
+
+### References
+
+- [1] [LLaMA explained by Umar Jmail](https://youtu.be/Mn_9W1nCFLo?si=NpZTLk45re1znY0T)
+- [2] [Vision Transformer in pure JAX by Alessio Devoto ](https://alessiodevoto.github.io/ViT-in-pure-JAX/)
+- [3] [ROPE by Christopher Fleetwood](https://huggingface.co/blog/designing-positional-encoding)
+
+
