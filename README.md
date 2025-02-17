@@ -118,6 +118,12 @@ install pickle
 
 ```
 
+```python 
+
+python3 train.py
+
+```
+
 
 ### Thank you !! 
 
