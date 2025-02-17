@@ -1,5 +1,4 @@
 venv
 .DS_Store
-src/model_weights.pkl
 src/__pycache__
 test.ipynb

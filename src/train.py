@@ -103,7 +103,7 @@ def update_step(params, batch):
 
 def train(num_epochs=30, steps_per_epoch=1000):
     key = random.PRNGKey(0)
-    params_state = params  # copying
+    params_state = params  
     
     epoch_losses = []
     
